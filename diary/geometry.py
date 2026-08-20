@@ -328,15 +328,22 @@ def _subpixel_peak(res: np.ndarray, loc) -> Tuple[float, float]:
 
 # ------------------------------------------------------- polynomial residual
 
+def _n_terms(deg: int) -> int:
+    return (deg + 1) * (deg + 2) // 2
+
+
 def _poly_terms(pts: np.ndarray, deg: int, size) -> np.ndarray:
     w, h = size
     x = pts[:, 0] / w * 2.0 - 1.0
     y = pts[:, 1] / h * 2.0 - 1.0
-    cols = [np.ones_like(x)]
+    out = np.empty((len(pts), _n_terms(deg)), dtype=x.dtype)
+    out[:, 0] = 1.0
+    k = 1
     for total in range(1, deg + 1):
         for i in range(total + 1):
-            cols.append((x ** (total - i)) * (y ** i))
-    return np.stack(cols, axis=1)
+            out[:, k] = (x ** (total - i)) * (y ** i)
+            k += 1
+    return out
 
 
 def fit_field(src: np.ndarray, dst: np.ndarray, size, deg: int) -> Optional[np.ndarray]:
@@ -357,16 +364,35 @@ def fit_field(src: np.ndarray, dst: np.ndarray, size, deg: int) -> Optional[np.n
     return coef
 
 
+FIELD_ROW_BLOCK = 128
+
+
 def apply_field(warped: np.ndarray, coef: np.ndarray, size, deg: int) -> Optional[np.ndarray]:
+    """Resample ``warped`` through the fitted displacement field.
+
+    Evaluated in horizontal bands rather than over the whole page at once.
+    Building the design matrix for every pixel in one go needs a
+    (width*height x terms) array - a couple of hundred megabytes for an A6 page
+    at 300 dpi - which is a real ceiling on a small instance.  Banding costs
+    nothing and bounds the working set to one band.
+    """
     w, h = size
-    yy, xx = np.mgrid[0:h, 0:w]
-    grid = np.stack([xx.ravel(), yy.ravel()], axis=1).astype(np.float32)
-    mapped = _poly_terms(grid, deg, size) @ coef
-    shift = np.abs(mapped - grid)
-    if float(shift.max()) > MAX_FIELD_SHIFT:
-        return None
-    mx = mapped[:, 0].reshape(h, w).astype(np.float32)
-    my = mapped[:, 1].reshape(h, w).astype(np.float32)
+    mx = np.empty((h, w), np.float32)
+    my = np.empty((h, w), np.float32)
+    xs = np.arange(w, dtype=np.float32)
+
+    for y0 in range(0, h, FIELD_ROW_BLOCK):
+        y1 = min(y0 + FIELD_ROW_BLOCK, h)
+        rows = y1 - y0
+        band = np.empty((rows * w, 2), np.float32)
+        band[:, 0] = np.tile(xs, rows)
+        band[:, 1] = np.repeat(np.arange(y0, y1, dtype=np.float32), w)
+        mapped = _poly_terms(band, deg, size) @ coef
+        if float(np.abs(mapped - band).max()) > MAX_FIELD_SHIFT:
+            return None
+        mx[y0:y1] = mapped[:, 0].reshape(rows, w)
+        my[y0:y1] = mapped[:, 1].reshape(rows, w)
+
     return cv2.remap(warped, mx, my, cv2.INTER_CUBIC, borderMode=cv2.BORDER_REPLICATE)
 
 
@@ -413,10 +439,17 @@ def _highpass(img: np.ndarray) -> np.ndarray:
     return f - cv2.GaussianBlur(f, (0, 0), 9.0)
 
 
-def template_score(warped: np.ndarray, month: int) -> float:
-    """Illumination- and focus-tolerant correlation with the clean template."""
+def template_score(warped: np.ndarray, month: int,
+                   hp: Optional[np.ndarray] = None) -> float:
+    """Illumination- and focus-tolerant correlation with the clean template.
+
+    ``hp`` lets a caller that already has the high-passed page hand it in.
+    High-passing is two Gaussian blurs over the whole page, and rectification
+    scores a dozen candidates, so recomputing it each time is the single
+    largest cost in the pipeline on a CPU-limited machine.
+    """
     refs, keep = _score_reference(month)
-    b = _highpass(warped)[keep]
+    b = (_highpass(warped) if hp is None else hp)[keep]
     b = b - b.mean()
     n = float(np.sqrt(float((b * b).sum())))
     if n <= 1e-6:
@@ -483,9 +516,15 @@ def rectify(gray: np.ndarray, markers: Dict[int, np.ndarray], month: int,
                                    borderMode=cv2.BORDER_REPLICATE)
 
     best = warp(H)
-    best_score = template_score(best, month)
+    best_hp = _highpass(best)
+    best_score = template_score(best, month, best_hp)
     stats = {"markers": float(len(ids)), "marker_inliers": float(marker_inliers),
              "anchor_rate": 0.0, "anchor_inliers": 0.0, "stage": 0.0}
+
+    def consider(image):
+        """High-pass once, score once; returns (image, hp, score)."""
+        hp = _highpass(image)
+        return image, hp, template_score(image, month, hp)
 
     # Stage 1: whole-page translation. Phase correlation looks at the entire
     # page at once, so unlike a patch search it cannot land one row out.
@@ -494,52 +533,50 @@ def rectify(gray: np.ndarray, markers: Dict[int, np.ndarray], month: int,
         dx, dy, _ = shift
         for sign in (-1.0, 1.0):
             Ht = np.array([[1, 0, sign * dx], [0, 1, sign * dy], [0, 0, 1]], np.float64) @ H
-            cand = warp(Ht)
-            score = template_score(cand, month)
+            cand, cand_hp, score = consider(warp(Ht))
             if score > best_score + 1e-4:
-                H, best, best_score = Ht, cand, score
+                H, best, best_hp, best_score = Ht, cand, cand_hp, score
                 stats["stage"] = 0.5
 
     # Stage 2: homography through printed landmarks, coarse patches first.
     for half, cell, search, min_score in LEVELS:
         n_total = max(1, len(anchors(month, half, cell)[0]))
         for _ in range(2):
-            src, dst = match_anchors(_highpass(best), month, half, cell, search, min_score)
+            src, dst = match_anchors(best_hp, month, half, cell, search, min_score)
             if len(src) < 6:
                 break
             Hr, inliers = fit_homography(src, dst, 8.0)
             if Hr is None or inliers < 6:
                 break
             cand_H = Hr @ H
-            cand = warp(cand_H)
-            score = template_score(cand, month)
+            cand, cand_hp, score = consider(warp(cand_H))
             if score <= best_score + 1e-4:
                 break
-            H, best, best_score = cand_H, cand, score
+            H, best, best_hp, best_score = cand_H, cand, cand_hp, score
             stats.update(anchor_rate=max(stats["anchor_rate"], inliers / n_total),
                          anchor_inliers=float(inliers), stage=1.0)
 
     # Stage 3: the non-projective remainder - page curl and lens distortion,
     # which no homography can express.
     for half, cell, search, min_score in FIELD_LEVELS:
-        src, dst = match_anchors(_highpass(best), month, half, cell, search, min_score)
+        src, dst = match_anchors(best_hp, month, half, cell, search, min_score)
         for deg in (3, 2):
-            if len(src) < 3 * ((deg + 1) * (deg + 2) // 2):
+            if len(src) < 3 * _n_terms(deg):
                 continue
             coef = fit_field(src, dst, size, deg)
             if coef is None:
                 continue
-            cand = apply_field(best, coef, size, deg)
-            if cand is None:
+            remapped = apply_field(best, coef, size, deg)
+            if remapped is None:
                 continue
-            score = template_score(cand, month)
+            cand, cand_hp, score = consider(remapped)
             if score > best_score + 1e-4:
-                best, best_score = cand, score
+                best, best_hp, best_score = cand, cand_hp, score
                 stats["stage"] = 2.0
             break
 
     half, cell = 34, 78
-    src, dst = match_anchors(_highpass(best), month, half, cell, 14, 0.34)
+    src, dst = match_anchors(best_hp, month, half, cell, 14, 0.34)
     n_total = max(1, len(anchors(month, half, cell)[0]))
     stats["anchor_rate"] = max(stats["anchor_rate"], len(src) / n_total)
     stats["residual_px"] = (float(np.median(np.linalg.norm(src - dst, axis=1)))

@@ -77,6 +77,27 @@ def _register_heif() -> None:
         pass
 
 
+MAX_INPUT_LONG_SIDE = 3000
+
+
+def _bound_size(img: np.ndarray) -> np.ndarray:
+    """Cap the working resolution.
+
+    A modern phone shoots 12 MP or more, and every intermediate copy of such a
+    frame is tens of megabytes - enough to matter on a small instance.  The
+    page is rectified to a fixed 300 dpi canonical frame anyway, and marker
+    decoding is comfortable well below this cap, so nothing is gained by
+    carrying the full sensor resolution through the pipeline.
+    """
+    h, w = img.shape[:2]
+    long_side = max(h, w)
+    if long_side <= MAX_INPUT_LONG_SIDE:
+        return img
+    scale = MAX_INPUT_LONG_SIDE / long_side
+    return cv2.resize(img, (max(1, int(round(w * scale))), max(1, int(round(h * scale)))),
+                      interpolation=cv2.INTER_AREA)
+
+
 def load_image(path: str) -> np.ndarray:
     """Read an image, honouring the EXIF orientation phones write."""
     try:
@@ -85,12 +106,12 @@ def load_image(path: str) -> np.ndarray:
         _register_heif()
         with Image.open(path) as im:
             im = ImageOps.exif_transpose(im).convert("RGB")
-            return cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR)
+            return _bound_size(cv2.cvtColor(np.asarray(im), cv2.COLOR_RGB2BGR))
     except Exception:
         img = cv2.imread(path, cv2.IMREAD_COLOR)
         if img is None:
             raise FileNotFoundError(f"cannot read image: {path}")
-        return img
+        return _bound_size(img)
 
 
 # --------------------------------------------------------------- box reading
@@ -179,6 +200,7 @@ def read(path_or_image, want_debug: bool = False,
     img = load_image(path_or_image) if isinstance(path_or_image, str) else path_or_image
     if img is None:
         return Reading(False, reason="the file could not be decoded as an image")
+    img = _bound_size(img)
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) if img.ndim == 3 else img
 
     markers = G.detect_markers(gray)
