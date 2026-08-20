@@ -52,6 +52,8 @@ python generate_training_data.py && python evaluate.py
 
 ## Web app
 
+**Live at https://migraine-diary-reader.onrender.com**
+
 A small Flask front end wraps the same tool: photograph or upload a month page,
 and the reading comes back as a table with a CSV download.
 
@@ -107,6 +109,21 @@ that matter for a server deployment:
 
 The committed `diary/template_model.json` and `diary/template_pages/` mean the
 deploy needs neither the source PDF nor PyMuPDF.
+
+**Sizing.** A free instance gives 512 MB and 0.15 CPU, and the reader is built
+for accuracy rather than speed, so one page takes roughly **35 seconds** there
+(about 2 seconds on a laptop). The free plan also spins down when idle, adding
+around 50 seconds to the first request after a pause. Both go away on `starter`.
+Verified on the live free instance: four pages read, every CSV byte-identical
+to its ground truth, and non-diary images refused in about 6 seconds.
+
+Getting it to fit 512 MB took three changes worth knowing about, since a
+straightforward implementation does not fit: the polynomial displacement field
+is evaluated in horizontal bands instead of building a design matrix over every
+pixel at once (a few hundred MB for one page); the page high-pass is computed
+once per rectification candidate rather than on every scoring call; and input
+images are capped at 3000 px on the long side, since a 12 MP phone photo
+otherwise carries tens of MB through every intermediate copy for no benefit.
 
 ## How it works
 
