@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+.venv/
+uploads/
+.DS_Store
+
+# Regenerate with: python generate_training_data.py && python make_negatives.py
+Training/

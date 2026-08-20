@@ -1,0 +1,111 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="hero">
+  <h1>Turn a diary page into data</h1>
+  <p class="lede">
+    Photograph one month page of your paper migraine diary. Every day's
+    <strong>M</strong>, <strong>H</strong> and <strong>Rx</strong> box is read
+    and returned as a table you can download as CSV.
+  </p>
+</section>
+
+{% if error %}
+<p class="alert" role="alert">{{ error }}</p>
+{% endif %}
+
+<form class="uploader" method="post" action="{{ url_for('upload') }}"
+      enctype="multipart/form-data" id="form">
+  <label class="dropzone" id="dropzone" for="file-choose">
+    <span class="dropzone-art" aria-hidden="true">
+      <svg viewBox="0 0 48 48" width="46" height="46" fill="none" stroke="currentColor"
+           stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M6 16h7l3-4h16l3 4h7v22H6z"/>
+        <circle cx="24" cy="27" r="7"/>
+      </svg>
+    </span>
+    <span class="dropzone-title" id="dropzone-title">Add a photo of a month page</span>
+    <span class="dropzone-hint" id="dropzone-hint">Drag one here, or use a button below</span>
+    <img class="preview" id="preview" alt="" hidden>
+  </label>
+
+  <input type="file" name="page" id="file-choose" accept="image/*" hidden>
+  <input type="file" id="file-camera" accept="image/*" capture="environment" hidden>
+
+  <div class="actions">
+    <button type="button" class="btn btn-quiet" id="camera-btn">Take a photo</button>
+    <button type="button" class="btn btn-quiet" id="choose-btn">Choose a file</button>
+    <button type="submit" class="btn btn-primary" id="submit-btn" disabled>Read the page</button>
+  </div>
+  <p class="working" id="working" hidden>Reading the page&hellip; this takes a few seconds.</p>
+</form>
+
+<section class="tips">
+  <h2>For a clean read</h2>
+  <ul>
+    <li>Get all four corner squares in the frame &mdash; they tell the reader which month it is and where the grid sits.</li>
+    <li>Lay the page as flat as you can. A gentle curl is fine; a folded corner is not.</li>
+    <li>Even light beats bright light. Avoid a hard shadow across the middle of the page.</li>
+    <li>Fill boxes with a dark pen. Ticks, crosses and scribbles all read as <em>yes</em>; an empty box means <em>no</em>.</li>
+  </ul>
+</section>
+
+<script>
+(function () {
+  var chooseInput = document.getElementById('file-choose');
+  var cameraInput = document.getElementById('file-camera');
+  var submit = document.getElementById('submit-btn');
+  var preview = document.getElementById('preview');
+  var title = document.getElementById('dropzone-title');
+  var hint = document.getElementById('dropzone-hint');
+  var dropzone = document.getElementById('dropzone');
+  var form = document.getElementById('form');
+  var working = document.getElementById('working');
+
+  function adopt(file) {
+    if (!file) return;
+    var transfer = new DataTransfer();
+    transfer.items.add(file);
+    chooseInput.files = transfer.files;
+    submit.disabled = false;
+    title.textContent = file.name;
+    hint.textContent = Math.round(file.size / 1024) + ' KB ready to read';
+    if (preview.src) URL.revokeObjectURL(preview.src);
+    preview.src = URL.createObjectURL(file);
+    preview.hidden = false;
+  }
+
+  document.getElementById('choose-btn').addEventListener('click', function () {
+    chooseInput.click();
+  });
+  document.getElementById('camera-btn').addEventListener('click', function () {
+    cameraInput.click();
+  });
+  chooseInput.addEventListener('change', function () { adopt(chooseInput.files[0]); });
+  cameraInput.addEventListener('change', function () { adopt(cameraInput.files[0]); });
+
+  ['dragenter', 'dragover'].forEach(function (name) {
+    dropzone.addEventListener(name, function (e) {
+      e.preventDefault();
+      dropzone.classList.add('is-over');
+    });
+  });
+  ['dragleave', 'drop'].forEach(function (name) {
+    dropzone.addEventListener(name, function (e) {
+      e.preventDefault();
+      dropzone.classList.remove('is-over');
+    });
+  });
+  dropzone.addEventListener('drop', function (e) {
+    if (e.dataTransfer.files.length) adopt(e.dataTransfer.files[0]);
+  });
+
+  form.addEventListener('submit', function () {
+    if (chooseInput.files.length) {
+      submit.disabled = true;
+      submit.textContent = 'Reading…';
+      working.hidden = false;
+    }
+  });
+})();
+</script>
+{% endblock %}

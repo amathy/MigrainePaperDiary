@@ -1,0 +1,408 @@
+/* Migraine Diary Reader — calm, paper-like, mobile first. */
+
+:root {
+  --paper:        #f7f6f3;
+  --card:         #ffffff;
+  --ink:          #1d1c1a;
+  --ink-soft:     #5f5c55;
+  --ink-faint:    #918d84;
+  --rule:         #e3e0d8;
+  --rule-strong:  #d0ccc1;
+  --accent:       #3f5d52;
+  --accent-ink:   #ffffff;
+  --migraine:     #a2453c;
+  --headache:     #b4762a;
+  --medication:   #3f6187;
+  --alert-bg:     #fdf1ee;
+  --alert-ink:    #8c3a30;
+  --alert-rule:   #eccec6;
+  --shadow:       0 1px 2px rgba(30, 28, 24, .05), 0 8px 24px -12px rgba(30, 28, 24, .18);
+  --radius:       14px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper:       #16161a;
+    --card:        #1e1e23;
+    --ink:         #ece9e3;
+    --ink-soft:    #a9a49b;
+    --ink-faint:   #78736b;
+    --rule:        #2e2e35;
+    --rule-strong: #3c3c45;
+    --accent:      #7fb0a0;
+    --accent-ink:  #12211c;
+    --migraine:    #e0857b;
+    --headache:    #e2ac62;
+    --medication:  #8fb2d9;
+    --alert-bg:    #2c1f1d;
+    --alert-ink:   #f0b0a6;
+    --alert-rule:  #4a2f2a;
+    --shadow:      0 1px 2px rgba(0, 0, 0, .35), 0 10px 28px -14px rgba(0, 0, 0, .7);
+  }
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  padding: 0 max(1rem, env(safe-area-inset-left)) 3rem;
+  background: var(--paper);
+  color: var(--ink);
+  font: 16px/1.6 ui-sans-serif, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2 { line-height: 1.2; letter-spacing: -.015em; margin: 0 0 .4rem; }
+h1 { font-size: clamp(1.5rem, 1.1rem + 1.9vw, 2.1rem); }
+h2 { font-size: 1.05rem; }
+p { margin: 0 0 .9rem; }
+abbr { text-decoration: none; }
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px;
+  clip-path: inset(50%); overflow: hidden; white-space: nowrap;
+}
+
+/* ---------------------------------------------------------------- chrome */
+
+.masthead {
+  max-width: 46rem;
+  margin: 0 auto;
+  padding: 1.4rem 0 1.1rem;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  color: var(--ink);
+  text-decoration: none;
+  font-weight: 600;
+  font-size: .95rem;
+  letter-spacing: -.01em;
+}
+
+.wordmark-mark { display: inline-flex; color: var(--accent); }
+
+.shell { max-width: 46rem; margin: 0 auto; }
+
+.footer {
+  max-width: 46rem;
+  margin: 2.5rem auto 0;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: .82rem;
+}
+
+/* ------------------------------------------------------------------ hero */
+
+.hero { margin-bottom: 1.5rem; }
+.lede { color: var(--ink-soft); margin: 0; max-width: 34rem; }
+.hero .lede { font-size: 1.02rem; }
+
+.eyebrow {
+  margin: 0 0 .2rem;
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.alert {
+  background: var(--alert-bg);
+  border: 1px solid var(--alert-rule);
+  color: var(--alert-ink);
+  border-radius: 10px;
+  padding: .75rem .9rem;
+  font-size: .92rem;
+}
+
+/* -------------------------------------------------------------- uploader */
+
+.uploader { margin: 0 0 2rem; }
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .3rem;
+  min-height: 13rem;
+  padding: 1.75rem 1.25rem;
+  text-align: center;
+  background: var(--card);
+  border: 1.5px dashed var(--rule-strong);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.dropzone:hover, .dropzone.is-over {
+  border-color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.dropzone-art { color: var(--ink-faint); margin-bottom: .35rem; }
+.dropzone:hover .dropzone-art, .dropzone.is-over .dropzone-art { color: var(--accent); }
+.dropzone-title { font-weight: 600; overflow-wrap: anywhere; }
+.dropzone-hint { color: var(--ink-faint); font-size: .86rem; }
+
+.preview {
+  margin-top: 1rem;
+  max-height: 15rem;
+  max-width: 100%;
+  border-radius: 9px;
+  box-shadow: var(--shadow);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: .6rem;
+  margin-top: 1rem;
+}
+
+.working {
+  margin: .85rem 0 0;
+  color: var(--ink-faint);
+  font-size: .88rem;
+}
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: .68rem 1.15rem;
+  border-radius: 9px;
+  border: 1px solid var(--rule-strong);
+  background: var(--card);
+  color: var(--ink);
+  font: inherit;
+  font-size: .93rem;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease, border-color .15s ease, opacity .15s ease;
+}
+
+.btn:hover { border-color: var(--accent); }
+
+.btn-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  margin-left: auto;
+}
+
+.btn-primary:hover { opacity: .9; }
+.btn:disabled { opacity: .45; cursor: not-allowed; }
+.btn:disabled:hover { border-color: var(--accent); }
+
+@media (max-width: 30rem) {
+  /* Stacked, in the order the steps actually happen: pick a photo, then read. */
+  .actions { flex-direction: column; }
+  .btn { width: 100%; }
+  /* Scoped to the uploader: on the result page the primary action should
+     stay where the markup puts it, at the top. */
+  .actions .btn-primary { margin-left: 0; order: 1; }
+}
+
+/* ------------------------------------------------------------------ tips */
+
+.tips {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.3rem;
+  color: var(--ink-soft);
+  font-size: .92rem;
+}
+
+.tips h2 { color: var(--ink); margin-bottom: .55rem; }
+.tips ul { margin: 0; padding-left: 1.15rem; }
+.tips li { margin-bottom: .38rem; }
+
+/* ---------------------------------------------------------------- result */
+
+.result-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.4rem;
+}
+
+.result-actions { display: flex; gap: .55rem; flex-wrap: wrap; }
+.result-actions .btn-primary { margin-left: 0; }
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: .6rem;
+  margin-bottom: 1.4rem;
+}
+
+.stat {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: 11px;
+  padding: .85rem .9rem;
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.stat-badge {
+  align-self: flex-start;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .05em;
+  padding: .1rem .4rem;
+  border-radius: 5px;
+  color: var(--accent-ink);
+  margin-bottom: .3rem;
+}
+
+.stat-migraine   .stat-badge { background: var(--migraine); }
+.stat-headache   .stat-badge { background: var(--headache); }
+.stat-medication .stat-badge { background: var(--medication); }
+
+@media (prefers-color-scheme: dark) {
+  .stat-badge { color: #16161a; }
+}
+
+.stat-value { font-size: 1.5rem; font-weight: 650; line-height: 1.1; }
+.stat-label { color: var(--ink-faint); font-size: .8rem; }
+
+.table-wrap {
+  background: var(--card);
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  overflow-x: auto;
+  box-shadow: var(--shadow);
+}
+
+.diary {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.diary th, .diary td {
+  padding: .48rem .6rem;
+  border-bottom: 1px solid var(--rule);
+  text-align: center;
+}
+
+.diary tbody tr:last-child th,
+.diary tbody tr:last-child td { border-bottom: 0; }
+
+.diary thead th {
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  color: var(--ink-faint);
+  font-size: .74rem;
+  font-weight: 600;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--rule-strong);
+}
+
+/* Needs the .diary prefix to outrank ".diary th, .diary td { text-align: center }". */
+.diary .col-date { text-align: left; width: auto; }
+.diary .col-mark { width: 3.9rem; }
+
+/* No flex/grid on a table cell - it drops the cell out of table layout and
+   the row rules stop lining up. */
+.diary tbody th { font-weight: 500; white-space: nowrap; }
+
+.day-number {
+  display: inline-block;
+  min-width: 1.35rem;
+  margin-right: .45rem;
+  font-weight: 650;
+}
+
+.day-name { color: var(--ink-faint); font-size: .82rem; }
+
+.diary tbody tr.is-weekend { background: color-mix(in srgb, var(--rule) 28%, transparent); }
+.diary tbody tr.is-marked .day-number { color: var(--ink); }
+.diary tbody tr:not(.is-marked) th { color: var(--ink-faint); }
+
+.mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.55rem;
+  height: 1.55rem;
+  border-radius: 6px;
+}
+
+.mark-empty {
+  border: 1px solid var(--rule-strong);
+  opacity: .5;
+}
+
+.mark-migraine   { background: var(--migraine);   color: #fff; }
+.mark-headache   { background: var(--headache);   color: #fff; }
+.mark-medication { background: var(--medication); color: #fff; }
+
+@media (prefers-color-scheme: dark) {
+  .mark-migraine, .mark-headache, .mark-medication { color: #16161a; }
+}
+
+/* -------------------------------------------------------------- rejected */
+
+.rejected { max-width: 34rem; }
+.rejected-art { display: inline-flex; color: var(--alert-ink); margin-bottom: .6rem; }
+
+.reason {
+  background: var(--alert-bg);
+  border: 1px solid var(--alert-rule);
+  color: var(--alert-ink);
+  border-radius: 10px;
+  padding: .75rem .9rem;
+  font-size: .92rem;
+}
+
+.reason-label {
+  display: block;
+  font-size: .7rem;
+  font-weight: 700;
+  letter-spacing: .09em;
+  text-transform: uppercase;
+  opacity: .75;
+  margin-bottom: .1rem;
+}
+
+.retry-tips { color: var(--ink-soft); font-size: .92rem; padding-left: 1.15rem; }
+.retry-tips li { margin-bottom: .38rem; }
+.rejected-actions { margin-top: 1.4rem; }
+
+/* ---------------------------------------------------------------- source */
+
+.source { margin-top: 1.6rem; }
+
+.source summary {
+  cursor: pointer;
+  color: var(--ink-soft);
+  font-size: .9rem;
+  padding: .4rem 0;
+}
+
+.source summary:hover { color: var(--ink); }
+
+.source-image {
+  display: block;
+  max-width: 100%;
+  margin-top: .7rem;
+  border-radius: 10px;
+  border: 1px solid var(--rule);
+}
+
+.source-note { color: var(--ink-faint); font-size: .85rem; margin-top: .6rem; }

@@ -1,0 +1,23 @@
+# Deploy: push this repo to GitHub, then in Render choose
+# "New +" -> "Blueprint" and point it at the repo.
+services:
+  - type: web
+    name: migraine-diary-reader
+    runtime: python
+    # "free" spins down when idle (expect a slow first request after a pause).
+    # Switch to "starter" for an always-on instance.
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    # The reading itself happens in a subprocess, so one worker with a few
+    # threads keeps memory low while still overlapping requests.
+    startCommand: gunicorn wsgi:app --workers 1 --threads 4 --timeout 240 --bind 0.0.0.0:$PORT
+    healthCheckPath: /healthz
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.12.3"
+      # Render's disk is ephemeral. Uploads live under /tmp and disappear on
+      # restart, which is the right lifetime for someone's health data anyway.
+      - key: DIARY_UPLOAD_DIR
+        value: /tmp/migraine-diary-uploads
+      - key: DIARY_UPLOAD_TTL_HOURS
+        value: "6"

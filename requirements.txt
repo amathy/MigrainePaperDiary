@@ -1,0 +1,8 @@
+# Runtime for the web app and the ReadMigraineDiary CLI.
+# Pinned to the versions this app was tested against.
+Flask==3.1.3
+gunicorn==26.1.0
+numpy==2.5.2
+opencv-contrib-python-headless==5.0.0.93   # headless: server images have no libGL
+pillow==12.3.0
+pillow-heif==1.5.0                         # so iPhone HEIC captures open

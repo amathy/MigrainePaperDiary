@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}{{ month_label or "Diary" }} — Migraine Diary Reader{% endblock %}
+{% block content %}
+
+<section class="result-head">
+  <div>
+    <p class="eyebrow">Read successfully</p>
+    <h1>{{ month_label or "Your diary page" }}</h1>
+    <p class="lede">
+      {{ summary.days }} days &middot; {{ summary.affected }} with something recorded
+    </p>
+  </div>
+  <div class="result-actions">
+    <a class="btn btn-primary" href="{{ url_for('download', token=token) }}">Download CSV</a>
+    <a class="btn btn-quiet" href="{{ url_for('index') }}">Read another page</a>
+  </div>
+</section>
+
+<section class="stats">
+  {% for key, short, label in columns %}
+  <div class="stat stat-{{ key }}">
+    <span class="stat-badge">{{ short }}</span>
+    <span class="stat-value">{{ summary.counts[loop.index0] }}</span>
+    <span class="stat-label">{{ label }} {{ "day" if summary.counts[loop.index0] == 1 else "days" }}</span>
+  </div>
+  {% endfor %}
+</section>
+
+<section class="table-wrap">
+  <table class="diary">
+    <caption class="visually-hidden">Daily migraine, headache and medication entries</caption>
+    <thead>
+      <tr>
+        <th scope="col" class="col-date">Date</th>
+        {% for key, short, label in columns %}
+        <th scope="col" class="col-mark"><abbr title="{{ label }}">{{ short }}</abbr></th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+      <tr class="{{ 'is-weekend ' if row.weekend }}{{ 'is-marked' if row.marked }}">
+        <th scope="row" class="col-date">
+          <span class="day-number">{{ row.day }}</span>
+          <span class="day-name">{{ row.weekday }}</span>
+        </th>
+        {% for key, short, label in columns %}
+        <td class="col-mark">
+          {% if row.marks[loop.index0] %}
+            <span class="mark mark-{{ key }}" title="{{ label }}: yes">
+              <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor"
+                   stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M3 8.5l3.4 3.4L13 4.8"/>
+              </svg>
+              <span class="visually-hidden">yes</span>
+            </span>
+          {% else %}
+            <span class="mark mark-empty"><span class="visually-hidden">no</span></span>
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<details class="source">
+  <summary>The page that was read</summary>
+  <img src="{{ image_url }}" alt="The uploaded diary page" class="source-image">
+  <p class="source-note">
+    Check a few rows against the paper before you rely on the CSV.
+  </p>
+</details>
+
+{% endblock %}

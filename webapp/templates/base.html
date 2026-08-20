@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>{% block title %}Migraine Diary Reader{% endblock %}</title>
+<meta name="theme-color" content="#f7f6f3" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#16161a" media="(prefers-color-scheme: dark)">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>📓</text></svg>">
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<header class="masthead">
+  <a class="wordmark" href="{{ url_for('index') }}">
+    <span class="wordmark-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor"
+           stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="3" width="18" height="18" rx="3"/>
+        <path d="M8 12.5l2.5 2.5L16 9"/>
+      </svg>
+    </span>
+    Migraine Diary Reader
+  </a>
+</header>
+<main class="shell">
+  {% block content %}{% endblock %}
+</main>
+<footer class="footer">
+  Reads the ArUco-registered month pages of the paper migraine diary.
+</footer>
+</body>
+</html>

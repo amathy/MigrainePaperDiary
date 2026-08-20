@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}Not a diary page — Migraine Diary Reader{% endblock %}
+{% block content %}
+
+<section class="rejected">
+  <span class="rejected-art" aria-hidden="true">
+    <svg viewBox="0 0 48 48" width="44" height="44" fill="none" stroke="currentColor"
+         stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="24" cy="24" r="18"/>
+      <path d="M24 15v11M24 32.5v.5"/>
+    </svg>
+  </span>
+  <h1>{% if not_found %}Nothing to show{% else %}That image doesn't fit the diary template{% endif %}</h1>
+  {% if not not_found %}
+  <p class="lede">
+    Nothing was transcribed. The reader only returns data when it can register
+    the page against the printed template, so that it never invents entries.
+  </p>
+  {% endif %}
+  <p class="reason"><span class="reason-label">Reason</span> {{ reason }}</p>
+
+  {% if not not_found %}
+  <ul class="retry-tips">
+    <li>Photograph a <strong>month page</strong> &mdash; the right-hand pages with the day grid. The dotted notes pages carry no markers and cannot be read.</li>
+    <li>Include <strong>all four corner squares</strong>, and keep them unblurred and unwritten-on.</li>
+    <li>Move somewhere brighter, hold steadier, or get closer so the page fills more of the frame.</li>
+  </ul>
+  {% endif %}
+
+  <p class="rejected-actions">
+    <a class="btn btn-primary" href="{{ url_for('index') }}">Try another photo</a>
+  </p>
+
+  {% if image_url %}
+  <details class="source">
+    <summary>The image you sent</summary>
+    <img src="{{ image_url }}" alt="The uploaded image" class="source-image">
+  </details>
+  {% endif %}
+</section>
+
+{% endblock %}
