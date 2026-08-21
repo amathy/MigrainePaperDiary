@@ -245,6 +245,9 @@ def test_webapp():
         check("home page is marked an experimental proof of concept",
               "proof of concept" in html.lower()
               and "not intended for use with real medical" in html.lower())
+        check("home page says it is only meant for its author",
+              "only for use by its author" in html.lower()
+              and "author's own use" in html.lower())
 
         # A "don't upload real data" warning below the upload control would be
         # read only after the upload had already happened.
