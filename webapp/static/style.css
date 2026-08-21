@@ -406,3 +406,12 @@ abbr { text-decoration: none; }
 }
 
 .source-note { color: var(--ink-faint); font-size: .85rem; margin-top: .6rem; }
+
+.privacy {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--rule);
+  color: var(--ink-faint);
+  font-size: .84rem;
+  max-width: 34rem;
+}

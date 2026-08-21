@@ -31,12 +31,17 @@
     <a class="btn btn-primary" href="{{ url_for('index') }}">Try another photo</a>
   </p>
 
-  {% if image_url %}
+  {% if image_data %}
   <details class="source">
     <summary>The image you sent</summary>
-    <img src="{{ image_url }}" alt="The uploaded image" class="source-image">
+    <img src="{{ image_data }}" alt="The uploaded image" class="source-image">
   </details>
   {% endif %}
+
+  <p class="privacy">
+    The image was deleted as soon as the reading finished. Nothing about it was
+    kept on the server.
+  </p>
 </section>
 
 {% endblock %}

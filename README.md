@@ -38,7 +38,8 @@ to 2600 px, and 90°/180° rotations):
 
 `run_tests.py` covers the template model, reading, rotation invariance,
 leap-year February, all 12 rejection cases, the CLI contract and the web app
-end to end: **65 checks, 0 failures**.
+end to end — including that nothing is left on disk after a read: **71 checks,
+0 failures**.
 
 The single rejected page is a small, heavily motion-blurred frame whose ArUco
 markers decode to the *wrong* ids; the template check catches the resulting
@@ -64,26 +65,51 @@ python wsgi.py                     # http://localhost:5000
 
 - **Home** — a drop zone with *Take a photo* (opens the camera on a phone via
   `capture="environment"`) and *Choose a file*, with a preview before sending.
-- **Upload** — the image is stored under a random token in the upload
-  directory, and `ReadMigraineDiary` is run over it as a subprocess. Running
-  the actual CLI keeps the web app on exactly the code path that was measured,
-  and isolates the worker from anything OpenCV might do to a malformed image.
+- **Upload** — the image is written to a temporary directory and
+  `ReadMigraineDiary` is run over it as a subprocess, then the directory is
+  deleted. Running the actual CLI keeps the web app on exactly the code path
+  that was measured, and isolates the worker from anything OpenCV might do to a
+  malformed image.
 - **Result** — the CSV rendered as a table, with per-column totals, weekday
   labels, a collapsible view of the photo that was read, and a download button.
+  Rendered directly into the upload response; see *Nothing is retained* below.
 - **Rejected** — if the reader refuses the image, the refusal is shown along
   with the reader's own reason and advice on retaking the photo. Nothing is
   transcribed and no CSV is produced. The whole point of the reader's rejection
   path is that a page it cannot register yields no data, and the web app must
   not paper over that.
 
-Uploads are photographs of somebody's health record, so they are kept only as
-long as needed to show and download the result: every upload prunes stored
-pages older than `DIARY_UPLOAD_TTL_HOURS` (default 6).
+### Nothing is retained
+
+These are photographs of somebody's health record, so no copy of the photo or
+of the reading outlives the request that produced it:
+
+- The upload is written to a temporary directory **only** because the reader
+  takes a file path. That directory is removed in a `finally` block before the
+  response is returned — on the rejection path and the error path too.
+- The result table is rendered straight into the response. There is no result
+  URL, so a reading cannot be revisited, shared by link, or found by guessing.
+- The **CSV download is built in the browser** from data embedded in the page,
+  so the file never has to exist on the server. With scripting off, a fallback
+  form posts the text back and it is echoed straight through, still untouched
+  by disk.
+- The photo shown back under "the page that was read" is a downscaled JPEG
+  inlined as a `data:` URI — again, because there is no stored file to serve.
+- `sweep_orphans` exists purely as a safety net for a request killed mid-read,
+  and it also clears the token directories an earlier version of this app kept
+  results in, so upgrading disposes of them. It only touches directories whose
+  names match a shape this app creates.
+
+Two things this does *not* claim. Render's access log records request lines, so
+it will show that a `POST /upload` happened, with a timestamp — but no filename
+and no diary content. And the result page cannot be reloaded or bookmarked;
+refreshing re-submits the form, which is the honest consequence of keeping
+nothing.
 
 | variable | default | purpose |
 | --- | --- | --- |
-| `DIARY_UPLOAD_DIR` | `./uploads` | where uploaded pages and their CSVs live |
-| `DIARY_UPLOAD_TTL_HOURS` | `6` | how long a stored page is kept |
+| `DIARY_UPLOAD_DIR` | `./uploads` | parent for the per-request temporary directory |
+| `DIARY_SWEEP_MINUTES` | `15` | age at which crash debris is swept |
 | `PORT` | `5000` | dev-server port (`python wsgi.py`) |
 
 ### Deploying to Render
@@ -222,7 +248,7 @@ them at 0.00–0.01 against a threshold of 0.35.
 | `generate_training_data.py` | builds `Training/images` + `Training/ground_truth` |
 | `make_negatives.py` | builds `Training/negatives` |
 | `evaluate.py` | scores the reader against the ground truth |
-| `run_tests.py` | template, reading, rejection and CLI checks |
+| `run_tests.py` | template, reading, rejection, CLI and web app checks |
 
 ## Training data
 

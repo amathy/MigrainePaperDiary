@@ -15,9 +15,10 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: "3.12.3"
-      # Render's disk is ephemeral. Uploads live under /tmp and disappear on
-      # restart, which is the right lifetime for someone's health data anyway.
+      # Parent for the per-request temporary directory. Nothing is retained:
+      # each read deletes its own directory before responding, and this only
+      # ever holds an in-flight page. /tmp is simply the right place for that.
       - key: DIARY_UPLOAD_DIR
         value: /tmp/migraine-diary-uploads
-      - key: DIARY_UPLOAD_TTL_HOURS
-        value: "6"
+      - key: DIARY_SWEEP_MINUTES
+        value: "15"

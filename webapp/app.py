@@ -1,11 +1,18 @@
 """A small Flask front end for ReadMigraineDiary.
 
-The flow is deliberately linear: photograph or upload a diary month page, the
-image is stored, ``ReadMigraineDiary`` is run over it, and the resulting CSV is
-shown as a table with a download link.  If the reader refuses the image, the
-refusal is shown as-is - the point of the reader's rejection path is that a
-page it cannot register honestly produces no data, and the web app must not
-paper over that.
+The flow is deliberately linear: photograph or upload a diary month page,
+``ReadMigraineDiary`` is run over it, and the resulting CSV is shown as a table
+with a download.  If the reader refuses the image, the refusal is shown as-is -
+the point of the reader's rejection path is that a page it cannot register
+honestly produces no data, and the web app must not paper over that.
+
+**Nothing is retained.**  These are photographs of somebody's health record.
+The upload is written to a temporary directory only because the reader takes a
+file path, and that directory is removed in a ``finally`` block before the
+response is returned - on the rejection path too, and on the error path too.
+The table is rendered from memory and the CSV download is produced in the
+browser from data embedded in the page, so no result outlives the request and
+there is nothing on disk to leak, prune, or expire.
 
 The reader is invoked as the actual command-line program rather than imported.
 That keeps the web app using exactly the tool that was measured, and isolates
@@ -14,18 +21,19 @@ the worker from anything OpenCV might do to a malformed image.
 
 from __future__ import annotations
 
+import base64
 import csv
 import datetime as _dt
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
-import uuid
 
-from flask import (Flask, abort, redirect, render_template, request,
-                   send_file, url_for)
+from flask import Flask, Response, render_template, request
 from werkzeug.utils import secure_filename
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -35,7 +43,8 @@ ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp",
                       ".bmp", ".tif", ".tiff"}
 MAX_UPLOAD_BYTES = 32 * 1024 * 1024
 READ_TIMEOUT_SECONDS = 180
-TOKEN_RE = re.compile(r"\A[0-9a-f]{32}\Z")
+THUMBNAIL_WIDTH = 900          # the page shown back for checking, not stored
+MAX_CSV_ECHO_BYTES = 64 * 1024
 
 COLUMN_LABELS = (("migraine", "M", "Migraine"),
                  ("headache", "H", "Headache"),
@@ -46,26 +55,38 @@ def _upload_root() -> str:
     return os.environ.get("DIARY_UPLOAD_DIR", os.path.join(ROOT, "uploads"))
 
 
-def _upload_ttl_seconds() -> float:
+def _sweep_seconds() -> float:
+    """How long an *orphaned* working directory may linger before a sweep."""
     try:
-        return float(os.environ.get("DIARY_UPLOAD_TTL_HOURS", "6")) * 3600.0
+        return max(60.0, float(os.environ.get("DIARY_SWEEP_MINUTES", "15")) * 60.0)
     except ValueError:
-        return 6 * 3600.0
+        return 900.0
 
 
-def prune_uploads(root: str, ttl: float) -> int:
-    """Delete stored pages older than the retention window.
+# Directories this app has ever created: the current per-request working
+# directory, and the token directories an earlier version kept results in.
+_OURS = re.compile(r"\A(read-[A-Za-z0-9_]+|[0-9a-f]{32})\Z")
 
-    These are photographs of somebody's health record.  They are kept only
-    long enough to show the result and let it be downloaded.
+
+def sweep_orphans(root: str, older_than: float) -> int:
+    """Remove working directories a crashed request could have left behind.
+
+    The normal path deletes its own directory in a ``finally`` block, so this
+    only ever finds debris from a process that was killed mid-read.  It is a
+    safety net, not the retention mechanism - there is no retention.
+
+    It also clears the token directories an earlier version of this app used to
+    keep results in, so upgrading actually disposes of what that version
+    stored rather than leaving it on disk forever.  Only directories matching
+    a shape this app creates are touched.
     """
-    if ttl <= 0 or not os.path.isdir(root):
+    if not os.path.isdir(root):
         return 0
-    cutoff = time.time() - ttl
+    cutoff = time.time() - older_than
     removed = 0
     for name in os.listdir(root):
         folder = os.path.join(root, name)
-        if not TOKEN_RE.match(name) or not os.path.isdir(folder):
+        if not _OURS.match(name) or not os.path.isdir(folder):
             continue
         try:
             if os.path.getmtime(folder) < cutoff:
@@ -80,7 +101,7 @@ def create_app() -> Flask:
     app = Flask(__name__)
     app.config["MAX_CONTENT_LENGTH"] = MAX_UPLOAD_BYTES
     app.config["UPLOAD_ROOT"] = _upload_root()
-    app.config["UPLOAD_TTL"] = _upload_ttl_seconds()
+    app.config["SWEEP_SECONDS"] = _sweep_seconds()
     os.makedirs(app.config["UPLOAD_ROOT"], exist_ok=True)
 
     @app.get("/")
@@ -93,12 +114,12 @@ def create_app() -> Flask:
 
     @app.post("/upload")
     def upload():
-        upload = request.files.get("page")
-        if upload is None or not upload.filename:
+        posted = request.files.get("page")
+        if posted is None or not posted.filename:
             return render_template("index.html",
                                    error="Choose a photo of a diary page first."), 400
 
-        name = secure_filename(upload.filename) or "page.jpg"
+        name = secure_filename(posted.filename) or "page.jpg"
         ext = os.path.splitext(name)[1].lower()
         if ext not in ALLOWED_EXTENSIONS:
             return render_template(
@@ -106,50 +127,46 @@ def create_app() -> Flask:
                 error=f"{ext or 'That file type'} is not an image this app can open. "
                       "Use a JPEG, PNG or HEIC photo."), 400
 
-        prune_uploads(app.config["UPLOAD_ROOT"], app.config["UPLOAD_TTL"])
+        sweep_orphans(app.config["UPLOAD_ROOT"], app.config["SWEEP_SECONDS"])
 
-        token = uuid.uuid4().hex
-        folder = os.path.join(app.config["UPLOAD_ROOT"], token)
-        os.makedirs(folder, exist_ok=True)
-        image_path = os.path.join(folder, "page" + ext)
-        upload.save(image_path)
+        # A temporary directory, removed unconditionally below. The reader
+        # needs a path on disk; nothing else here does.
+        folder = tempfile.mkdtemp(prefix="read-", dir=app.config["UPLOAD_ROOT"])
+        try:
+            image_path = os.path.join(folder, "page" + ext)
+            posted.save(image_path)
+            thumbnail = thumbnail_data_uri(image_path)
+            outcome = run_reader(image_path)
 
-        outcome = run_reader(image_path)
-        if not outcome["ok"]:
-            return render_template("rejected.html", reason=outcome["reason"],
-                                   image_url=url_for("page_image", token=token)), 422
-        return redirect(url_for("result", token=token))
+            if not outcome["ok"]:
+                return render_template("rejected.html", reason=outcome["reason"],
+                                       image_data=thumbnail), 422
 
-    @app.get("/result/<token>")
-    def result(token):
-        folder = _folder(app, token)
-        csv_path = os.path.join(folder, "page.csv")
-        if not os.path.exists(csv_path):
-            abort(404)
-        rows = read_rows(csv_path)
-        return render_template("result.html", token=token, rows=rows,
-                               summary=summarise(rows),
-                               month_label=month_label(rows),
-                               columns=COLUMN_LABELS,
-                               image_url=url_for("page_image", token=token))
+            csv_path = os.path.splitext(image_path)[0] + ".csv"
+            with open(csv_path, newline="") as fh:
+                csv_text = fh.read()
+        finally:
+            shutil.rmtree(folder, ignore_errors=True)
 
-    @app.get("/result/<token>/diary.csv")
-    def download(token):
-        csv_path = os.path.join(_folder(app, token), "page.csv")
-        if not os.path.exists(csv_path):
-            abort(404)
-        rows = read_rows(csv_path)
-        stem = (month_label(rows) or "migraine-diary").lower().replace(" ", "-")
-        return send_file(csv_path, mimetype="text/csv", as_attachment=True,
-                         download_name=f"{stem}.csv")
+        rows = parse_rows(csv_text)
+        label = month_label(rows)
+        return render_template("result.html", rows=rows, summary=summarise(rows),
+                               month_label=label, columns=COLUMN_LABELS,
+                               csv_text=csv_text, image_data=thumbnail,
+                               filename=csv_filename(label))
 
-    @app.get("/result/<token>/page")
-    def page_image(token):
-        folder = _folder(app, token)
-        for name in sorted(os.listdir(folder)):
-            if name.startswith("page") and not name.endswith(".csv"):
-                return send_file(os.path.join(folder, name))
-        abort(404)
+    @app.post("/download")
+    def download():
+        """Echo posted CSV text back as an attachment (no-JavaScript fallback).
+
+        The browser normally builds the file itself from data already in the
+        page; this exists so the download still works with scripting off. The
+        text is passed straight through and never touches disk.
+        """
+        text = request.form.get("csv", "")[:MAX_CSV_ECHO_BYTES]
+        name = csv_filename(request.form.get("label", ""))
+        return Response(text, mimetype="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     @app.errorhandler(413)
     def too_large(_):
@@ -161,20 +178,46 @@ def create_app() -> Flask:
     @app.errorhandler(404)
     def not_found(_):
         return render_template("rejected.html", not_found=True,
-                               reason="That result has expired or never existed. "
-                                      "Uploads are not kept indefinitely."), 404
+                               reason="Nothing is kept after a page is read, so "
+                                      "results cannot be revisited by URL. "
+                                      "Upload the photo again to read it."), 404
 
     return app
 
 
-def _folder(app: Flask, token: str) -> str:
-    """Resolve an upload token to its directory, refusing anything crafted."""
-    if not TOKEN_RE.match(token or ""):
-        abort(404)
-    folder = os.path.join(app.config["UPLOAD_ROOT"], token)
-    if not os.path.isdir(folder):
-        abort(404)
-    return folder
+def csv_filename(label: str) -> str:
+    stem = (label or "migraine-diary").lower().replace(" ", "-")
+    stem = re.sub(r"[^a-z0-9._-]", "", stem) or "migraine-diary"
+    return f"{stem}.csv"
+
+
+def thumbnail_data_uri(path: str) -> str:
+    """A small JPEG of the uploaded page, inlined in the response.
+
+    Shown so the reading can be checked against the photo it came from. It is
+    embedded in the HTML rather than served from a URL precisely because there
+    is no stored file to serve.
+    """
+    try:
+        from PIL import Image, ImageOps
+
+        try:
+            import pillow_heif
+
+            pillow_heif.register_heif_opener()
+        except Exception:
+            pass
+
+        with Image.open(path) as im:
+            im = ImageOps.exif_transpose(im).convert("RGB")
+            if im.width > THUMBNAIL_WIDTH:
+                height = round(im.height * THUMBNAIL_WIDTH / im.width)
+                im = im.resize((THUMBNAIL_WIDTH, height), Image.LANCZOS)
+            buffer = io.BytesIO()
+            im.save(buffer, format="JPEG", quality=72, optimize=True)
+    except Exception:
+        return ""
+    return "data:image/jpeg;base64," + base64.b64encode(buffer.getvalue()).decode("ascii")
 
 
 # ------------------------------------------------------------------- reading
@@ -204,10 +247,9 @@ def _clean_reason(stderr: str) -> str:
     return text or "The image could not be read."
 
 
-def read_rows(csv_path: str) -> list:
-    """Load the emitted CSV into rows ready for the table."""
-    with open(csv_path, newline="") as fh:
-        raw = list(csv.reader(fh))
+def parse_rows(csv_text: str) -> list:
+    """Turn the emitted CSV text into rows ready for the table."""
+    raw = list(csv.reader(io.StringIO(csv_text)))
     if raw and raw[0][:1] == ["date"]:
         raw = raw[1:]
 

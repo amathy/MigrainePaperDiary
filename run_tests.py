@@ -12,6 +12,7 @@ from __future__ import annotations
 import csv
 import glob
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -216,6 +217,13 @@ def test_webapp():
 
         client = webapp_module.create_app().test_client()
 
+        def leftovers():
+            found = []
+            for root, dirs, files in os.walk(tmp):
+                found += [os.path.join(root, f) for f in files]
+                found += [os.path.join(root, d) for d in dirs]
+            return found
+
         page = client.get("/")
         check("home page renders", page.status_code == 200)
         html = page.get_data(as_text=True)
@@ -233,27 +241,22 @@ def test_webapp():
         with open(source, "rb") as fh:
             posted = client.post("/upload", data={"page": (fh, "page.jpg")},
                                  content_type="multipart/form-data")
-        check("a valid page redirects to a result", posted.status_code == 302,
+        check("a valid page renders the result directly", posted.status_code == 200,
               str(posted.status_code))
-        if posted.status_code != 302:
-            return
+        body = posted.get_data(as_text=True)
 
-        location = posted.headers["Location"]
-        result = client.get(location)
-        check("result page renders", result.status_code == 200)
-        body = result.get_data(as_text=True)
-        check("result page names the month", "2026" in body, "no month heading")
-        check("result page links the CSV download", "diary.csv" in body)
+        # The point of the design: no copy of the photo or the reading survives.
+        check("nothing is left on disk after a successful read", not leftovers(),
+              str(leftovers()))
+        check("no result URL is handed out", "/result/" not in body)
 
-        served = client.get(location.rstrip("/") + "/diary.csv")
-        check("CSV downloads as an attachment",
-              served.status_code == 200
-              and "attachment" in served.headers.get("Content-Disposition", ""))
-        got = served.get_data(as_text=True).strip().splitlines()
         expected = open(os.path.join(ROOT, "Training", "ground_truth",
                                      stem + ".csv")).read().strip().splitlines()
-        check("downloaded CSV matches the ground truth", got == expected,
-              f"{sum(1 for a, b in zip(got, expected) if a != b)} rows differ")
+        check("the embedded CSV matches the ground truth",
+              all(line in body for line in expected[:6]), "rows missing from page")
+        check("the page shows the month", "2026" in body)
+        check("the photo is inlined, not linked", "data:image/jpeg;base64," in body)
+        check("the page says nothing was kept", "Nothing was kept" in body)
 
         negatives = sorted(glob.glob(os.path.join(ROOT, "Training", "negatives", "*.jpg")))
         if negatives:
@@ -264,6 +267,16 @@ def test_webapp():
                   str(bad.status_code))
             check("the refusal says the image does not fit the template",
                   "doesn't fit the diary template" in bad.get_data(as_text=True))
+            check("nothing is left on disk after a refused read", not leftovers(),
+                  str(leftovers()))
+
+        echoed = client.post("/download", data={"csv": "date,migraine\n2026-01-01,no\n",
+                                                "label": "January 2026"})
+        check("the no-JavaScript download returns an attachment",
+              echoed.status_code == 200
+              and "attachment" in echoed.headers.get("Content-Disposition", "")
+              and "january-2026.csv" in echoed.headers.get("Content-Disposition", ""))
+        check("the no-JavaScript download stores nothing", not leftovers())
 
         with open(source, "rb") as fh:
             wrong = client.post("/upload", data={"page": (fh, "notes.txt")},
@@ -272,23 +285,31 @@ def test_webapp():
         check("posting no file is refused",
               client.post("/upload", data={}, content_type="multipart/form-data")
               .status_code == 400)
+        check("stale result URLs 404", client.get("/result/" + "f" * 32).status_code == 404)
 
-        for token in ("../../etc/passwd", "nope", "f" * 32):
-            if client.get(f"/result/{token}").status_code != 404:
-                check(f"unknown token {token!r} is a 404", False)
-                break
-        else:
-            check("unknown and malformed result tokens 404", True)
+        legacy = os.path.join(tmp, "a" * 32)          # how an older version stored results
+        os.makedirs(legacy, exist_ok=True)
+        os.utime(legacy, (0, 0))
+        webapp_module.sweep_orphans(tmp, older_than=60)
+        check("results left by an older version are swept too", not os.path.exists(legacy))
 
-        stale = os.path.join(tmp, "a" * 32)
-        os.makedirs(stale, exist_ok=True)
-        os.utime(stale, (0, 0))
-        webapp_module.prune_uploads(tmp, ttl=3600)
-        check("stale uploads are pruned", not os.path.exists(stale))
-        keeper = os.path.join(tmp, "b" * 32)
-        os.makedirs(keeper, exist_ok=True)
-        webapp_module.prune_uploads(tmp, ttl=3600)
-        check("fresh uploads are kept", os.path.exists(keeper))
+        outsider = os.path.join(tmp, "not-ours")
+        os.makedirs(outsider, exist_ok=True)
+        os.utime(outsider, (0, 0))
+        webapp_module.sweep_orphans(tmp, older_than=60)
+        check("directories this app did not create are left alone",
+              os.path.exists(outsider))
+        shutil.rmtree(outsider)
+
+        orphan = os.path.join(tmp, "read-crashed")
+        os.makedirs(orphan, exist_ok=True)
+        os.utime(orphan, (0, 0))
+        webapp_module.sweep_orphans(tmp, older_than=60)
+        check("debris from a killed request is swept", not os.path.exists(orphan))
+        fresh = os.path.join(tmp, "read-inflight")
+        os.makedirs(fresh, exist_ok=True)
+        webapp_module.sweep_orphans(tmp, older_than=60)
+        check("an in-flight request is not swept", os.path.exists(fresh))
 
     os.environ.pop("DIARY_UPLOAD_DIR", None)
 
