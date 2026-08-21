@@ -415,3 +415,36 @@ abbr { text-decoration: none; }
   font-size: .84rem;
   max-width: 34rem;
 }
+
+/* ---------------------------------------------- blank diary + disclaimer */
+
+.blank-diary,
+.disclaimer {
+  border-top: 1px solid var(--rule);
+  padding-top: 1.3rem;
+  margin-top: 1.6rem;
+  color: var(--ink-soft);
+  font-size: .92rem;
+}
+
+.blank-diary h2,
+.disclaimer h2 { color: var(--ink); margin-bottom: .5rem; }
+
+.blank-diary h3 {
+  color: var(--ink);
+  font-size: .92rem;
+  margin: 1.1rem 0 .45rem;
+}
+
+.blank-diary ul { margin: 0; padding-left: 1.15rem; }
+.blank-diary li { margin-bottom: .42rem; }
+.blank-diary-actions { margin: .9rem 0 .2rem; }
+.blank-diary-actions .btn { display: inline-flex; }
+
+.disclaimer p { max-width: 36rem; }
+.disclaimer strong { color: var(--ink); }
+
+.footer p { margin: 0 0 .5rem; }
+.footer p:last-child { margin-bottom: 0; }
+.footer a { color: var(--ink-soft); }
+.footer-note { font-size: .78rem; opacity: .85; }

@@ -231,6 +231,18 @@ def test_webapp():
         check("home page offers a file input", 'type="file"' in html)
         check("health check responds", client.get("/healthz").status_code == 200)
 
+        pdf = client.get("/diary-template.pdf")
+        check("the blank diary PDF is served", pdf.status_code == 200,
+              str(pdf.status_code))
+        check("it is served as a PDF",
+              pdf.headers.get("Content-Type", "").startswith("application/pdf"))
+        check("the PDF is not empty", len(pdf.get_data()) > 100_000,
+              f"{len(pdf.get_data())} bytes")
+        check("home page links the blank diary and print instructions",
+              "/diary-template.pdf" in html and "Actual size" in html)
+        check("home page carries the disclaimer",
+              "not a medical device" in html and "can be wrong" in html)
+
         images = sorted(glob.glob(os.path.join(ROOT, "Training", "images", "*_easy.jpg")))
         if not images:
             check("training images exist (run generate_training_data.py)", False)

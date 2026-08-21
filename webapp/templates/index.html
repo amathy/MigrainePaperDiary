@@ -41,6 +41,45 @@
   </p>
 </form>
 
+<section class="blank-diary">
+  <h2>Don't have the diary yet?</h2>
+  <p>
+    It is a 30-page A6 booklet &mdash; a cover, a page of instructions, and then
+    twelve month pages with a dotted notes page facing each one.
+  </p>
+  <p class="blank-diary-actions">
+    <a class="btn btn-quiet" href="{{ url_for('diary_template') }}" target="_blank"
+       rel="noopener">Get the diary PDF (A6, 30 pages)</a>
+  </p>
+  <h3>Printing it</h3>
+  <ul>
+    <li>
+      The pages are already <strong>A6</strong> (105 &times; 148&nbsp;mm). Print
+      at <strong>100% / &ldquo;Actual size&rdquo;</strong> &mdash; not
+      &ldquo;Fit to page&rdquo; or &ldquo;Shrink oversized pages&rdquo;, which
+      can crop the corner squares the reader needs.
+    </li>
+    <li>
+      No A6 paper? Print <strong>4 pages per sheet on A4</strong> and cut: four
+      A6 pages tile an A4 sheet exactly, so nothing is scaled or lost.
+    </li>
+    <li>
+      Plain black and white is fine, but leave <strong>borderless off</strong> and
+      don't let the printer add its own margin &mdash; the four corner squares
+      must be complete and unclipped, with white space around them.
+    </li>
+    <li>
+      Print single-sided if you want it simple. Double-sided works too; the
+      notes and month pages are laid out to face each other in a bound booklet.
+    </li>
+    <li>
+      Only the <strong>month pages</strong> &mdash; the ones with the day grid
+      &mdash; can be read here. The dotted notes pages carry no corner squares
+      by design.
+    </li>
+  </ul>
+</section>
+
 <section class="tips">
   <h2>For a clean read</h2>
   <ul>
@@ -49,6 +88,29 @@
     <li>Even light beats bright light. Avoid a hard shadow across the middle of the page.</li>
     <li>Fill boxes with a dark pen. Ticks, crosses and scribbles all read as <em>yes</em>; an empty box means <em>no</em>.</li>
   </ul>
+</section>
+
+<section class="disclaimer">
+  <h2>Before you rely on this</h2>
+  <p>
+    <strong>This is not a medical device and it gives no medical advice.</strong>
+    It transcribes marks you made on paper. It does not interpret them, spot
+    patterns, or tell you anything about your health, and it is no substitute
+    for a conversation with a doctor or pharmacist.
+  </p>
+  <p>
+    <strong>The reading can be wrong.</strong> It is automated and it will
+    occasionally misread a box &mdash; a faint pencil mark, a shadow, a crease.
+    Measured accuracy is 99.6% per box, but that figure comes from generated
+    test images rather than photographs of real diaries, so treat it as a guide
+    rather than a promise. <strong>Check the table against your paper diary
+    before you rely on it or hand it to a clinician.</strong>
+  </p>
+  <p>
+    Nothing you upload is kept. The photo and the reading exist only for as long
+    as it takes to answer the request, and there is no copy on the server
+    afterwards.
+  </p>
 </section>
 
 <script>

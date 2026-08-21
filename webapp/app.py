@@ -33,11 +33,13 @@ import sys
 import tempfile
 import time
 
-from flask import Flask, Response, render_template, request
+from flask import Flask, Response, abort, render_template, request, send_file
 from werkzeug.utils import secure_filename
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 READER = os.path.join(ROOT, "ReadMigraineDiary")
+TEMPLATE_PDF = os.path.join(ROOT, "Template",
+                            "Headache diary with ArUco markersA6_nice.pdf")
 
 ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".heic", ".heif", ".webp",
                       ".bmp", ".tif", ".tiff"}
@@ -111,6 +113,15 @@ def create_app() -> Flask:
     @app.get("/healthz")
     def healthz():
         return {"status": "ok"}, 200
+
+    @app.get("/diary-template.pdf")
+    def diary_template():
+        """The blank diary itself, so someone can print their own."""
+        if not os.path.exists(TEMPLATE_PDF):
+            abort(404)
+        return send_file(TEMPLATE_PDF, mimetype="application/pdf",
+                         as_attachment=False,
+                         download_name="migraine-diary-a6.pdf")
 
     @app.post("/upload")
     def upload():

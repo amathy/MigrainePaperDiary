@@ -65,6 +65,11 @@ python wsgi.py                     # http://localhost:5000
 
 - **Home** — a drop zone with *Take a photo* (opens the camera on a phone via
   `capture="environment"`) and *Choose a file*, with a preview before sending.
+  Below it, the blank diary itself is offered at `/diary-template.pdf` with
+  printing instructions (the pages are already A6, so print at 100% rather than
+  "fit to page", or four-up on A4 and cut), and a disclaimer: not a medical
+  device, readings are automated and can be wrong, check them against the
+  paper.
 - **Upload** — the image is written to a temporary directory and
   `ReadMigraineDiary` is run over it as a subprocess, then the directory is
   deleted. Running the actual CLI keeps the web app on exactly the code path
