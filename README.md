@@ -69,7 +69,9 @@ python wsgi.py                     # http://localhost:5000
   printing instructions (the pages are already A6, so print at 100% rather than
   "fit to page", or four-up on A4 and cut), and a disclaimer: not a medical
   device, readings are automated and can be wrong, check them against the
-  paper.
+  paper. A "proof of concept — please don't upload real medical records"
+  notice sits *above* the upload control, since a warning placed below it
+  would only be read once the upload had already happened.
 - **Upload** — the image is written to a temporary directory and
   `ReadMigraineDiary` is run over it as a subprocess, then the directory is
   deleted. Running the actual CLI keeps the web app on exactly the code path

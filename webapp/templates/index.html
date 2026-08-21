@@ -9,6 +9,15 @@
   </p>
 </section>
 
+<aside class="notice">
+  <span class="notice-badge">Proof of concept</span>
+  <p>
+    This is an experimental demonstration, not a finished product.
+    <strong>Please don't upload real medical records.</strong> Try it with a
+    blank or made-up diary page &mdash; there's a printable one below.
+  </p>
+</aside>
+
 {% if error %}
 <p class="alert" role="alert">{{ error }}</p>
 {% endif %}
@@ -93,7 +102,15 @@
 <section class="disclaimer">
   <h2>Before you rely on this</h2>
   <p>
-    <strong>This is not a medical device and it gives no medical advice.</strong>
+    <strong>This is an experimental proof of concept.</strong> It was built to
+    show that a printed diary can be read reliably from a phone photo, and it
+    has been tested only against pages generated for that purpose. It has had
+    no clinical validation, no security review, and no guarantee of
+    availability. <strong>It is not intended for use with real medical
+    data.</strong>
+  </p>
+  <p>
+    <strong>It is not a medical device and it gives no medical advice.</strong>
     It transcribes marks you made on paper. It does not interpret them, spot
     patterns, or tell you anything about your health, and it is no substitute
     for a conversation with a doctor or pharmacist.

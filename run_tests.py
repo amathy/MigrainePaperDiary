@@ -242,6 +242,14 @@ def test_webapp():
               "/diary-template.pdf" in html and "Actual size" in html)
         check("home page carries the disclaimer",
               "not a medical device" in html and "can be wrong" in html)
+        check("home page is marked an experimental proof of concept",
+              "proof of concept" in html.lower()
+              and "not intended for use with real medical" in html.lower())
+
+        # A "don't upload real data" warning below the upload control would be
+        # read only after the upload had already happened.
+        check("the warning appears above the upload control",
+              html.index("don't upload real medical") < html.index('name="page"'))
 
         images = sorted(glob.glob(os.path.join(ROOT, "Training", "images", "*_easy.jpg")))
         if not images:
